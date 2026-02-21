@@ -1,0 +1,34 @@
+========================================
+  Malaria Detection System - Quick Start
+========================================
+
+Python 3.12 has been installed on your system (via winget).
+
+TO RUN THE APPLICATION:
+-----------------------
+1. Double-click:  run_app.bat
+   (This opens your browser at http://localhost:8501)
+
+   OR from a terminal in this folder:
+   venv\Scripts\streamlit.exe run app.py
+
+2. If you see "Python was not found":
+   - Open a NEW terminal/PowerShell (so it picks up the new PATH)
+   - Or use full path:
+     C:\Users\mhvra\AppData\Local\Programs\Python\Python312\python.exe -m venv venv
+     venv\Scripts\pip.exe install -r requirements.txt
+     venv\Scripts\streamlit.exe run app.py
+
+DEPENDENCIES:
+-------------
+All required packages (TensorFlow, Keras, OpenCV, Streamlit, etc.) are installed
+in the "venv" folder. You do not need to run pip again unless you add new dependencies.
+
+DATASET (for training):
+-----------------------
+To train a model, place cell images in:
+  data\cell_images\Parasitized\
+  data\cell_images\Uninfected\
+See README.md for dataset download links.
+
+========================================

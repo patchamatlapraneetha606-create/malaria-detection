@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+
+# Data (large files - exclude from repo)
+data/cell_images.zip
+data/cell_images/
+data/cell_images_extract/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Keep saved_models and results - include for deployment
+# (saved_models needed for Diagnose tab to work)
