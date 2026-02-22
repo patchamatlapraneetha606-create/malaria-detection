@@ -29,8 +29,9 @@ st.markdown("""
 <style>
     .main-header { font-size: 2rem; color: #1e3a5f; margin-bottom: 0.5rem; }
     .sub-header { color: #4a6fa5; margin-bottom: 1.5rem; }
-    .result-infected { background: #ffebee; padding: 1rem; border-radius: 8px; border-left: 4px solid #c62828; }
-    .result-uninfected { background: #e8f5e9; padding: 1rem; border-radius: 8px; border-left: 4px solid #2e7d32; }
+    .result-infected { background: #ffebee; padding: 1.25rem; border-radius: 8px; border-left: 5px solid #c62828; color: #0d0d0d; font-size: 1.35rem; font-weight: 700; }
+    .result-uninfected { background: #e8f5e9; padding: 1.25rem; border-radius: 8px; border-left: 5px solid #2e7d32; color: #0d0d0d; font-size: 1.35rem; font-weight: 700; }
+    .result-confidence { font-size: 1.5rem; font-weight: 800; }
     .metric-box { background: #f5f5f5; padding: 1rem; border-radius: 8px; text-align: center; }
     div[data-testid="stSidebar"] { background: #fafafa; }
 </style>
@@ -92,14 +93,14 @@ def run_app():
                     idx, name, conf, probs = predict_single(model, img)
                     if name == "Parasitized":
                         st.markdown(
-                            f'<div class="result-infected"><strong>Result: Parasitized (infected)</strong><br>'
-                            f'Confidence: {conf:.1%}</div>',
+                            f'<div class="result-infected">Result: Parasitized (infected)<br>'
+                            f'<span class="result-confidence">Confidence: {conf:.1%}</span></div>',
                             unsafe_allow_html=True,
                         )
                     else:
                         st.markdown(
-                            f'<div class="result-uninfected"><strong>Result: Uninfected</strong><br>'
-                            f'Confidence: {conf:.1%}</div>',
+                            f'<div class="result-uninfected">Result: Uninfected<br>'
+                            f'<span class="result-confidence">Confidence: {conf:.1%}</span></div>',
                             unsafe_allow_html=True,
                         )
                     st.write("Probabilities:")
