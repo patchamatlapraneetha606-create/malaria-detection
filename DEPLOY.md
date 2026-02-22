@@ -1,5 +1,7 @@
 # Deploy to Streamlit Community Cloud
 
+**Note:** The Train Model tab is disabled when published. It only works when running locally with `ENABLE_LOCAL_TRAINING=1` (use `run_app.bat` on Windows or `./run_app.sh` on Mac).
+
 Follow these steps to get a public URL for your Malaria Detection app.
 
 ## Step 1: Initialize Git and push to GitHub

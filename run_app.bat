@@ -11,5 +11,6 @@ if not exist venv\Scripts\streamlit.exe (
     venv\Scripts\pip.exe install -r requirements.txt -q
 )
 echo Starting Malaria Detection System...
+set ENABLE_LOCAL_TRAINING=1
 start http://localhost:8501
 venv\Scripts\streamlit.exe run app.py
