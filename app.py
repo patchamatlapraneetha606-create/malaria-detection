@@ -111,37 +111,33 @@ def run_app():
             st.warning("No trained model is available. Please add a trained model to the models directory.")
 
     # Tab 2: Accuracy analysis (uses evaluate.run_analysis and shows graphs)
+       # Tab 2: Accuracy analysis (read‑only results, no Check accuracy button)
     with tabs[1]:
         st.subheader("Model accuracy analysis")
-        if model_path:
-            if st.button("Check accuracy", type="primary", help="Run evaluation on the selected model"):
-                # 1) Check that the data directory actually exists
-                if not RAW_DATA_DIR.exists():
-                    st.error(
-                        f"Data directory not found: `{RAW_DATA_DIR}`.\n\n"
-                        "To generate accuracy metrics and graphs, make sure this folder "
-                        "exists in the repository and contains the malaria images."
-                    )
-                else:
-                    try:
-                        from evaluate import run_analysis
-                        with st.spinner("Evaluating model accuracy..."):
-                            run_analysis(Path(model_path), RAW_DATA_DIR, RESULTS_DIR)
-                        st.success("Evaluation complete.")
-                        st.rerun()
-                    except Exception as e:
-                        msg = str(e)
-                        if "no validation data" in msg.lower():
-                            st.error(
-                                "No validation data was found for this model.\n\n"
-                                "Please ensure your data is correctly structured for evaluation "
-                                "(for example, includes a validation or test split)."
-                            )
-                        else:
-                            st.error(f"Evaluation failed: {e}")
-            st.divider()
+        st.write(
+            "Below are the latest saved evaluation results, if available. "
+            "These are generated when the model is evaluated offline."
+        )
+
+        report_file = RESULTS_DIR / "classification_report.txt"
+        if report_file.exists():
+            with open(report_file) as f:
+                st.text(f.read())
+            col1, col2 = st.columns(2)
+            cm_path = RESULTS_DIR / "confusion_matrix.png"
+            roc_path = RESULTS_DIR / "roc_curve.png"
+            if cm_path.exists():
+                with col1:
+                    st.image(str(cm_path), caption="Confusion Matrix", use_container_width=True)
+            if roc_path.exists():
+                with col2:
+                    st.image(str(roc_path), caption="ROC Curve", use_container_width=True)
         else:
-            st.warning("Select a trained model in the sidebar first, then check accuracy.")
+            st.info(
+                "No evaluation report was found. "
+                "To generate one, run the evaluation script offline and "
+                "commit the generated report and plots into the results folder."
+            )
 
         # Show report and graphs if they exist (same as before)
         report_file = RESULTS_DIR / "classification_report.txt"
@@ -166,4 +162,5 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
 
