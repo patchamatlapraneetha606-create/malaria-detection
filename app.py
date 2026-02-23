@@ -2,20 +2,14 @@
 Malaria Detection - Healthcare Support System (Streamlit UI).
 Automated parasite detection, image classification, and model accuracy analysis.
 """
-import os
 import streamlit as st
 import numpy as np
 from pathlib import Path
-
-# Training only allowed when running locally (ENABLE_LOCAL_TRAINING=1)
-# Not set on Streamlit Cloud / published deployments
-ALLOW_LOCAL_TRAINING = os.environ.get("ENABLE_LOCAL_TRAINING", "").lower() in ("1", "true", "yes")
 import cv2
 from tensorflow import keras
+import tensorflow as tf
 
-from config import MODELS_DIR, RESULTS_DIR, RAW_DATA_DIR, CLASS_NAMES, IMG_SIZE
-from data_loader import load_image_opencv, preprocess_opencv, get_keras_image_dataset
-from models import get_model
+from config import MODELS_DIR, RAW_DATA_DIR, CLASS_NAMES, IMG_SIZE
 from predict import load_trained_model, preprocess_image, predict_single
 
 st.set_page_config(
@@ -53,6 +47,42 @@ def get_available_models():
     return models
 
 
+def evaluate_model_on_validation(model_path: Path):
+    """
+    Evaluate the selected model on a validation split created from RAW_DATA_DIR.
+
+    RAW_DATA_DIR should contain subfolders for each class
+    (e.g. Parasitized, Uninfected) with images.
+    """
+    if not RAW_DATA_DIR.exists():
+        st.error(f"Data directory not found: `{RAW_DATA_DIR}`.")
+        return
+
+    try:
+        val_ds = tf.keras.utils.image_dataset_from_directory(
+            RAW_DATA_DIR,
+            validation_split=0.2,
+            subset="validation",
+            seed=42,
+            image_size=IMG_SIZE,
+            batch_size=32,
+        )
+        val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
+
+        model = load_trained_model(model_path)
+        if model is None:
+            st.error("Could not load the selected model.")
+            return
+
+        loss, acc = model.evaluate(val_ds, verbose=0)
+    except Exception as e:
+        st.error(f"Evaluation failed: {e}")
+        return
+
+    st.success(f"Validation accuracy: {acc:.2%}")
+    st.write(f"Validation loss: {loss:.4f}")
+
+
 def run_app():
     st.markdown('<p class="main-header">🩸 Malaria Detection System</p>', unsafe_allow_html=True)
     st.markdown(
@@ -72,9 +102,13 @@ def run_app():
         model_path = next(p for n, p in available if n == model_choice)
     else:
         model_path = None
-        sidebar.info("No trained model found. Train a model in the **Train** tab first.")
+        sidebar.info(
+            "No trained model found. Please add trained model files "
+            "(e.g. best.keras or final.keras) into the models directory."
+        )
 
-    tabs = st.tabs(["🔬 Diagnose", "📊 Accuracy Analysis", "🏋️ Train Model"])
+    # NOTE: Train Model tab REMOVED
+    tabs = st.tabs(["🔬 Diagnose", "📊 Accuracy Analysis"])
 
     # Tab 1: Diagnose (upload image, get prediction)
     with tabs[0]:
@@ -109,123 +143,27 @@ def run_app():
             else:
                 st.error("Could not decode image.")
         elif uploaded is not None and not model_path:
-            st.warning("Train a model first, then run diagnosis.")
+            st.warning(
+                "No trained model is available. Please add a trained model to the models directory."
+            )
 
-    # Tab 2: Accuracy analysis (show report and plots if available)
+    # Tab 2: Accuracy analysis (simple evaluation on validation split)
     with tabs[1]:
         st.subheader("Model accuracy analysis")
         if model_path:
-            if st.button("Check accuracy", type="primary", help="Run evaluation on the selected model"):
-                try:
-                    from evaluate import run_analysis
-                    with st.spinner("Evaluating model accuracy..."):
-                        run_analysis(Path(model_path), RAW_DATA_DIR, RESULTS_DIR)
-                    st.success("Evaluation complete.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Evaluation failed: {e}")
-            st.divider()
+            st.write(
+                "This evaluates the selected model on a validation split "
+                "created from the raw data folder."
+            )
+            if st.button(
+                "Check accuracy",
+                type="primary",
+                help="Run evaluation on the selected model",
+            ):
+                with st.spinner("Evaluating model accuracy..."):
+                    evaluate_model_on_validation(Path(model_path))
         else:
             st.warning("Select a trained model in the sidebar first, then check accuracy.")
-        report_file = RESULTS_DIR / "classification_report.txt"
-        if report_file.exists():
-            with open(report_file) as f:
-                st.text(f.read())
-            col1, col2 = st.columns(2)
-            cm_path = RESULTS_DIR / "confusion_matrix.png"
-            roc_path = RESULTS_DIR / "roc_curve.png"
-            if cm_path.exists():
-                with col1:
-                    st.image(str(cm_path), caption="Confusion Matrix", use_container_width=True)
-            if roc_path.exists():
-                with col2:
-                    st.image(str(roc_path), caption="ROC Curve", use_container_width=True)
-        else:
-            st.info(
-                "Click **Check accuracy** above to run evaluation and generate the classification report, "
-                "confusion matrix, and ROC curve."
-            )
-
-    # Tab 3: Train model (local only - disabled when published)
-    with tabs[2]:
-        st.subheader("Train model")
-        if not ALLOW_LOCAL_TRAINING:
-            st.info(
-                "**Training is only available when running locally.**\n\n"
-                "This app is running in published/cloud mode. To train models, run the app on your machine:\n\n"
-                "```bash\n"
-                "cd praneeproject\n"
-                "ENABLE_LOCAL_TRAINING=1 streamlit run app.py\n"
-                "```\n\n"
-                "Or on Windows: use `run_app.bat` which enables training automatically."
-            )
-        else:
-            data_dir = RAW_DATA_DIR.resolve()
-            if not data_dir.exists():
-                st.warning(
-                    f"Data directory not found: `{data_dir}`. Create it with subfolders "
-                    "**Parasitized** and **Uninfected** containing cell images."
-                )
-                if st.button("Download sample data (1000 per class; first time downloads ~337 MB)"):
-                    import subprocess
-                    import sys
-                    cwd = Path(__file__).resolve().parent
-                    with st.spinner("Downloading malaria sample images (may take a few minutes)..."):
-                        out = subprocess.run(
-                            [sys.executable, str(cwd / "download_data.py"), "--max-per-class", "1000"],
-                            capture_output=True, text=True, cwd=str(cwd),
-                            timeout=900,
-                        )
-                    if out.returncode == 0:
-                        st.success("Sample data downloaded. Refresh the page to start training.")
-                        st.rerun()
-                    else:
-                        st.error("Download failed: " + (out.stderr or out.stdout or "")[:500])
-            else:
-                train_ds, val_ds, _ = get_keras_image_dataset(data_dir)
-                if train_ds is None:
-                    st.warning("No images found in Parasitized/ and Uninfected/. Download sample data first.")
-                    if st.button("Download sample data (1000 per class; first time downloads ~337 MB)"):
-                        import subprocess
-                        import sys
-                        cwd = Path(__file__).resolve().parent
-                        with st.spinner("Downloading malaria sample images (may take a few minutes)..."):
-                            out = subprocess.run(
-                                [sys.executable, str(cwd / "download_data.py"), "--max-per-class", "1000"],
-                                capture_output=True, text=True, cwd=str(cwd),
-                                timeout=900,
-                            )
-                        if out.returncode == 0:
-                            st.success("Sample data downloaded. You can start training now.")
-                            st.rerun()
-                        else:
-                            st.error("Download failed: " + (out.stderr or out.stdout or "")[:400])
-                else:
-                    st.info("Training data loaded. Choose architecture and epochs, then click Start training.")
-                    model_name = st.selectbox(
-                        "Architecture",
-                        ["custom", "mobilenetv2", "efficientnet"],
-                        index=0,
-                        help="Use 'custom' if mobilenetv2/efficientnet fail (e.g. SSL errors).",
-                    )
-                    epochs = st.slider("Epochs", 2, 30, 10)
-                    if st.button("Start training"):
-                        import subprocess
-                        import sys
-                        cwd = Path(__file__).resolve().parent
-                        cmd = [
-                            sys.executable, str(cwd / "train.py"),
-                            "--model", model_name,
-                            "--epochs", str(epochs),
-                        ]
-                        with st.spinner("Training in progress (this may take several minutes)..."):
-                            out = subprocess.run(cmd, capture_output=True, text=True, cwd=str(cwd))
-                        if out.returncode == 0:
-                            st.success("Training complete. You can use **Diagnose** and **Accuracy Analysis**.")
-                        else:
-                            st.error("Training failed. Check terminal: " + (out.stderr or out.stdout or "")[:500])
-                        if st.button("Refresh page"):
-                            st.rerun()
 
 
 if __name__ == "__main__":
