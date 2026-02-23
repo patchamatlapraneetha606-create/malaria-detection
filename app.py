@@ -6,10 +6,8 @@ import streamlit as st
 import numpy as np
 from pathlib import Path
 import cv2
-from tensorflow import keras
-import tensorflow as tf
 
-from config import MODELS_DIR, RAW_DATA_DIR, CLASS_NAMES, IMG_SIZE
+from config import MODELS_DIR, RESULTS_DIR, RAW_DATA_DIR, CLASS_NAMES, IMG_SIZE
 from predict import load_trained_model, preprocess_image, predict_single
 
 st.set_page_config(
@@ -47,42 +45,6 @@ def get_available_models():
     return models
 
 
-def evaluate_model_on_validation(model_path: Path):
-    """
-    Evaluate the selected model on a validation split created from RAW_DATA_DIR.
-
-    RAW_DATA_DIR should contain subfolders for each class
-    (e.g. Parasitized, Uninfected) with images.
-    """
-    if not RAW_DATA_DIR.exists():
-        st.error(f"Data directory not found: `{RAW_DATA_DIR}`.")
-        return
-
-    try:
-        val_ds = tf.keras.utils.image_dataset_from_directory(
-            RAW_DATA_DIR,
-            validation_split=0.2,
-            subset="validation",
-            seed=42,
-            image_size=IMG_SIZE,
-            batch_size=32,
-        )
-        val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
-
-        model = load_trained_model(model_path)
-        if model is None:
-            st.error("Could not load the selected model.")
-            return
-
-        loss, acc = model.evaluate(val_ds, verbose=0)
-    except Exception as e:
-        st.error(f"Evaluation failed: {e}")
-        return
-
-    st.success(f"Validation accuracy: {acc:.2%}")
-    st.write(f"Validation loss: {loss:.4f}")
-
-
 def run_app():
     st.markdown('<p class="main-header">🩸 Malaria Detection System</p>', unsafe_allow_html=True)
     st.markdown(
@@ -102,10 +64,7 @@ def run_app():
         model_path = next(p for n, p in available if n == model_choice)
     else:
         model_path = None
-        sidebar.info(
-            "No trained model found. Please add trained model files "
-            "(e.g. best.keras or final.keras) into the models directory."
-        )
+        sidebar.info("No trained model found. Add trained model files (e.g. best.keras or final.keras) into the models directory.")
 
     # NOTE: Train Model tab REMOVED
     tabs = st.tabs(["🔬 Diagnose", "📊 Accuracy Analysis"])
@@ -143,27 +102,60 @@ def run_app():
             else:
                 st.error("Could not decode image.")
         elif uploaded is not None and not model_path:
-            st.warning(
-                "No trained model is available. Please add a trained model to the models directory."
-            )
+            st.warning("No trained model is available. Please add a trained model to the models directory.")
 
-    # Tab 2: Accuracy analysis (simple evaluation on validation split)
+    # Tab 2: Accuracy analysis (uses evaluate.run_analysis and shows graphs)
     with tabs[1]:
         st.subheader("Model accuracy analysis")
         if model_path:
-            st.write(
-                "This evaluates the selected model on a validation split "
-                "created from the raw data folder."
-            )
-            if st.button(
-                "Check accuracy",
-                type="primary",
-                help="Run evaluation on the selected model",
-            ):
-                with st.spinner("Evaluating model accuracy..."):
-                    evaluate_model_on_validation(Path(model_path))
+            if st.button("Check accuracy", type="primary", help="Run evaluation on the selected model"):
+                # 1) Check that the data directory actually exists
+                if not RAW_DATA_DIR.exists():
+                    st.error(
+                        f"Data directory not found: `{RAW_DATA_DIR}`.\n\n"
+                        "To generate accuracy metrics and graphs, make sure this folder "
+                        "exists in the repository and contains the malaria images."
+                    )
+                else:
+                    try:
+                        from evaluate import run_analysis
+                        with st.spinner("Evaluating model accuracy..."):
+                            run_analysis(Path(model_path), RAW_DATA_DIR, RESULTS_DIR)
+                        st.success("Evaluation complete.")
+                        st.rerun()
+                    except Exception as e:
+                        msg = str(e)
+                        if "no validation data" in msg.lower():
+                            st.error(
+                                "No validation data was found for this model.\n\n"
+                                "Please ensure your data is correctly structured for evaluation "
+                                "(for example, includes a validation or test split)."
+                            )
+                        else:
+                            st.error(f"Evaluation failed: {e}")
+            st.divider()
         else:
             st.warning("Select a trained model in the sidebar first, then check accuracy.")
+
+        # Show report and graphs if they exist (same as before)
+        report_file = RESULTS_DIR / "classification_report.txt"
+        if report_file.exists():
+            with open(report_file) as f:
+                st.text(f.read())
+            col1, col2 = st.columns(2)
+            cm_path = RESULTS_DIR / "confusion_matrix.png"
+            roc_path = RESULTS_DIR / "roc_curve.png"
+            if cm_path.exists():
+                with col1:
+                    st.image(str(cm_path), caption="Confusion Matrix", use_container_width=True)
+            if roc_path.exists():
+                with col2:
+                    st.image(str(roc_path), caption="ROC Curve", use_container_width=True)
+        else:
+            st.info(
+                "Click **Check accuracy** above to run evaluation and generate the classification report, "
+                "confusion matrix, and ROC curve."
+            )
 
 
 if __name__ == "__main__":
