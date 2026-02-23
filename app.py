@@ -31,17 +31,23 @@ st.markdown("""
 
 
 def get_available_models():
-    """List saved models (best.keras or final.keras)."""
+    """List saved models (best.keras or final.keras), excluding 'custom'."""
     models = []
     if not MODELS_DIR.exists():
         return models
     for d in MODELS_DIR.iterdir():
-        if d.is_dir():
-            for name in ("best.keras", "final.keras"):
-                p = d / name
-                if p.exists():
-                    models.append((d.name, str(p)))
-                    break
+        if not d.is_dir():
+            continue
+
+        # Skip the 'custom' model so it does not appear in the UI
+        if d.name.lower() == "custom":
+            continue
+
+        for name in ("best.keras", "final.keras"):
+            p = d / name
+            if p.exists():
+                models.append((d.name, str(p)))
+                break
     return models
 
 
@@ -160,3 +166,4 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
