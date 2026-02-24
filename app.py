@@ -119,6 +119,39 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+def is_likely_blood_cell_image(img: np.ndarray) -> bool:
+    """
+    Simple heuristic check: image has minimum size and color profile
+    typical of microscopic blood smear (red/purple tones, not grayscale).
+    """
+    if img is None or img.size == 0:
+        return False
+
+    h, w = img.shape[:2]
+    # Reject very small or thumbnail-like images
+    if min(h, w) < 40:
+        return False
+
+    # Reject extreme aspect ratios (e.g. documents, banners)
+    aspect = max(w, h) / max(min(w, h), 1)
+    if aspect > 6:
+        return False
+
+    # Blood smear images (e.g. Giemsa) usually have red/purple tones
+    # and are not pure grayscale
+    b, g, r = cv2.split(img)
+    r_mean, g_mean, b_mean = float(r.mean()), float(g.mean()), float(b.mean())
+
+    # Grayscale check: R≈G≈B => likely not a stained smear
+    gray_score = abs(r_mean - g_mean) + abs(g_mean - b_mean) + abs(b_mean - r_mean)
+    if gray_score < 25:
+        return False
+
+    # Some presence of red (blood/stain)
+    if r_mean < 30 and g_mean < 30 and b_mean < 30:
+        return False
+
+    return True
 
 
 def get_available_models():
@@ -273,3 +306,4 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
