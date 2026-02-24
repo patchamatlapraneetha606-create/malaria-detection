@@ -212,7 +212,7 @@ def run_app():
             img_bytes = np.frombuffer(uploaded.read(), np.uint8)
             img = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
 
-            if img is not None:
+                      if img is not None:
                 col_img, col_result = st.columns([1.1, 1])
 
                 with col_img:
@@ -220,8 +220,14 @@ def run_app():
                     st.image(img_rgb, caption="Uploaded image", use_container_width=True)
 
                 with col_result:
-                    model = load_trained_model(Path(model_path))
-                    idx, name, conf, probs = predict_single(model, img)
+                    if not is_likely_blood_cell_image(img):
+                        st.error(
+                            "This does not appear to be a blood cell image. "
+                            "Please upload a microscopic blood smear image (e.g. single cell or field)."
+                        )
+                    else:
+                        model = load_trained_model(Path(model_path))
+                        idx, name, conf, probs = predict_single(model, img)
 
                     if name == "Parasitized":
                         st.markdown(
@@ -306,4 +312,5 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
 
