@@ -119,6 +119,8 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+
 def is_likely_blood_cell_image(img: np.ndarray) -> bool:
     """
     Simple heuristic check: image has minimum size and color profile
@@ -128,26 +130,20 @@ def is_likely_blood_cell_image(img: np.ndarray) -> bool:
         return False
 
     h, w = img.shape[:2]
-    # Reject very small or thumbnail-like images
     if min(h, w) < 40:
         return False
 
-    # Reject extreme aspect ratios (e.g. documents, banners)
     aspect = max(w, h) / max(min(w, h), 1)
     if aspect > 6:
         return False
 
-    # Blood smear images (e.g. Giemsa) usually have red/purple tones
-    # and are not pure grayscale
     b, g, r = cv2.split(img)
     r_mean, g_mean, b_mean = float(r.mean()), float(g.mean()), float(b.mean())
 
-    # Grayscale check: R≈G≈B => likely not a stained smear
     gray_score = abs(r_mean - g_mean) + abs(g_mean - b_mean) + abs(b_mean - r_mean)
     if gray_score < 25:
         return False
 
-    # Some presence of red (blood/stain)
     if r_mean < 30 and g_mean < 30 and b_mean < 30:
         return False
 
@@ -212,7 +208,7 @@ def run_app():
             img_bytes = np.frombuffer(uploaded.read(), np.uint8)
             img = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
 
-                      if img is not None:
+            if img is not None:
                 col_img, col_result = st.columns([1.1, 1])
 
                 with col_img:
@@ -229,46 +225,45 @@ def run_app():
                         model = load_trained_model(Path(model_path))
                         idx, name, conf, probs = predict_single(model, img)
 
-                    if name == "Parasitized":
-                        st.markdown(
-                            f'<div class="result-infected">Parasitized (infected)'
-                            f'<span class="result-confidence">{conf:.1%} confidence</span></div>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(
-                            f'<div class="result-uninfected">Uninfected'
-                            f'<span class="result-confidence">{conf:.1%} confidence</span></div>',
-                            unsafe_allow_html=True,
-                        )
+                        if name == "Parasitized":
+                            st.markdown(
+                                f'<div class="result-infected">Parasitized (infected)'
+                                f'<span class="result-confidence">{conf:.1%} confidence</span></div>',
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.markdown(
+                                f'<div class="result-uninfected">Uninfected'
+                                f'<span class="result-confidence">{conf:.1%} confidence</span></div>',
+                                unsafe_allow_html=True,
+                            )
 
-                    st.markdown("##### Class probabilities")
-                    for c, p in zip(CLASS_NAMES, probs):
-                        st.progress(float(p), text=f"{c}: {p:.1%}")
+                        st.markdown("##### Class probabilities")
+                        for c, p in zip(CLASS_NAMES, probs):
+                            st.progress(float(p), text=f"{c}: {p:.1%}")
 
-                    # Prediction summary - custom card so every word is visible (no truncation)
-                    st.markdown("##### Prediction summary")
-                    st.markdown(
-                        f'''
-                        <div class="summary-card">
-                            <div class="summary-row">
-                                <div class="summary-item">
-                                    <div class="summary-title">Predicted class</div>
-                                    <div class="summary-value">{name}</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-title">Confidence</div>
-                                    <div class="summary-value">{conf:.1%}</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-title">Model</div>
-                                    <div class="summary-value">{model_choice}</div>
+                        st.markdown("##### Prediction summary")
+                        st.markdown(
+                            f'''
+                            <div class="summary-card">
+                                <div class="summary-row">
+                                    <div class="summary-item">
+                                        <div class="summary-title">Predicted class</div>
+                                        <div class="summary-value">{name}</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-title">Confidence</div>
+                                        <div class="summary-value">{conf:.1%}</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-title">Model</div>
+                                        <div class="summary-value">{model_choice}</div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        ''',
-                        unsafe_allow_html=True,
-                    )
+                            ''',
+                            unsafe_allow_html=True,
+                        )
 
             else:
                 st.error("Could not decode image. Please upload a valid PNG/JPG image.")
@@ -312,5 +307,3 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
-
-
